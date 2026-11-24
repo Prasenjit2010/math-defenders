@@ -2,7 +2,7 @@
 
 A tabletop tower defense game for K–6 students. Solve math problems to earn energy, then build and evolve brass-and-wood towers that guard a felt path across a cardboard board. There are 108 tower evolutions, 18 math topics and a 100-wave campaign.
 
-**Play online: https://prasenjit2010.github.io/math-defenders/** (hosted free on GitHub Pages; updates automatically when files change on GitHub). Or double-click `index.html`. It needs no install. With no internet connection it runs session-only.
+**Play online: https://mathdefenders.vercel.app** (hosted free on Vercel; it updates automatically when files change on GitHub). A backup copy runs at https://prasenjit2010.github.io/math-defenders/. Or double-click `index.html`. It needs no install. With no internet connection it runs session-only.
 
 ## Saving progress with a class code (optional)
 
@@ -34,7 +34,7 @@ On Supabase's **Free plan**, a project pauses after 7 days without activity (for
 ## How to play
 
 1. Enter a **display nickname**, pick a **math level** and **battlefield**, and optionally **jump to wave 25, 50 or 75** to practice later stages.
-2. Answer problems in the bottom bar (click, or press `1` `2` `3`). Correct answers give energy, and fast answers build a streak worth up to ×2. A wrong answer jams the bar for 1.2 seconds and shows the right answer.
+2. Answer problems in the bottom bar (click, or press `1` `2` `3`). Correct answers give energy, and fast answers build a streak worth up to ×2. An answer counts as fast within 10 seconds (13 seconds for medium problems, 18 for long ones); the bar under the problem shows the time left. A wrong answer jams the bar for 1.2 seconds and shows the right answer.
 3. Click a wooden pad to build one of 12 towers. Click a tower to choose an upgrade path, then evolve it through 3 tiers.
 4. `F` cycles 1×/2×/3× speed, and `P` or `Esc` pauses. The pause menu can also jump to a milestone wave.
 
