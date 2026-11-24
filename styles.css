@@ -360,6 +360,7 @@ kbd {
 .t-actions { align-items: center; justify-content: space-between; margin-top: auto; padding-top: 6px; }
 .field label .opt { text-transform: none; letter-spacing: 0; font-weight: 700; }
 #class-code, #t-open-code { text-transform: uppercase; letter-spacing: .12em; }
+#class-code::placeholder, #t-open-code::placeholder { text-transform: none; letter-spacing: 0; }
 #class-field .form-error:empty { min-height: 0; }
 .t-class { display: flex; flex-direction: column; gap: 8px; }
 .t-class-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
