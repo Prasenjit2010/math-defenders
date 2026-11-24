@@ -43,6 +43,11 @@
           <label for="nick">Display nickname</label>
           <input id="nick" maxlength="18" placeholder="e.g. Gear Captain" required>
         </div>
+        <div class="field" id="class-field">
+          <label for="class-code">Class code <span class="opt">(optional, saves your progress)</span></label>
+          <input id="class-code" maxlength="7" placeholder="From your teacher, e.g. K7QM2P" autocapitalize="characters" spellcheck="false">
+          <div id="class-error" class="form-error" role="alert"></div>
+        </div>
         <div class="field">
           <span class="lbl">Math level</span>
           <div id="band-seg" class="seg-group" role="radiogroup" aria-label="Math level"></div>
@@ -61,7 +66,7 @@
           <button type="button" id="btn-almanac-start" class="btn btn-paper"><svg class="ico"><use href="#i-book"/></svg>Tower Almanac</button>
           <button type="submit" class="btn btn-felt btn-big">Start defending</button>
         </div>
-        <p class="fine">Nothing is saved. Your nickname, rank and progress last only until you close this tab.</p>
+        <p class="fine" id="start-fine">Nothing is saved. Your nickname, rank and progress last only until you close this tab.</p>
       </form>
     </div>
   </section>
@@ -182,6 +187,29 @@
       <div class="class-code">Class code <b id="t-code">——</b>
         <button id="t-newcode" class="btn btn-paper btn-xs" type="button">New code</button>
         <button id="t-copycode" class="btn btn-paper btn-xs" type="button">Copy</button>
+        <button id="t-switch" class="btn btn-paper btn-xs" type="button" hidden>Switch class</button>
+      </div>
+      <div id="t-class" class="t-class card-inset" hidden>
+        <div id="t-class-none">
+          <h3 class="t-h">Saved class</h3>
+          <p class="note">Create a class to save every student's progress. Students type the class code and a nickname. No emails or real names are needed. Your class PIN is the teacher PIN you just entered.</p>
+          <div class="t-class-row">
+            <button id="t-create" class="btn btn-felt btn-sm" type="button">Create class</button>
+            <span class="note">or open one:</span>
+            <input id="t-open-code" maxlength="7" placeholder="Class code" aria-label="Class code to open" spellcheck="false">
+            <input id="t-open-pin" type="password" inputmode="numeric" maxlength="6" placeholder="PIN" aria-label="Class PIN">
+            <button id="t-open" class="btn btn-paper btn-sm" type="button">Open</button>
+          </div>
+          <div id="t-class-error" class="form-error" role="alert"></div>
+        </div>
+        <div id="t-class-open" hidden>
+          <div class="t-class-row">
+            <h3 class="t-h" id="t-roster-title">Class roster</h3>
+            <button id="t-refresh" class="btn btn-paper btn-xs" type="button">Refresh</button>
+            <button id="t-class-csv" class="btn btn-brass btn-xs" type="button">Export class CSV</button>
+          </div>
+          <div class="table-wrap"><table class="t-table"><thead><tr><th>Nickname</th><th class="num">Rating</th><th class="num">Best wave</th><th class="num">Answered</th><th class="num">Accuracy</th><th>Last played</th><th></th></tr></thead><tbody id="t-roster"></tbody></table></div>
+        </div>
       </div>
       <p class="note" id="t-note">The game is paused while this view is open. Everything here disappears when the tab closes.</p>
       <div class="field">
@@ -226,14 +254,13 @@
       <div class="ms-grid">
         <div class="ms-stats" id="ms-stats"></div>
         <div class="account-card card-inset" aria-label="Create account preview">
-          <div class="eyebrow">Preview</div>
-          <h3>Create Account <span class="soon">Coming Soon</span></h3>
-          <p class="note">Soon you will be able to save your rank and towers and keep playing on any device.</p>
+          <div class="eyebrow" id="acc-eyebrow">Not saved</div>
+          <h3 id="acc-title">Save your progress</h3>
+          <p class="note" id="acc-note">Ask your teacher for a class code. Next time, type it on the start screen and your rank and best wave will be saved.</p>
           <label for="acc-name">Nickname</label>
           <input id="acc-name" disabled>
           <label for="acc-class">Class code</label>
-          <input id="acc-class" placeholder="ABC123" disabled>
-          <button class="btn btn-paper" type="button" disabled>Create account</button>
+          <input id="acc-class" placeholder="none" disabled>
         </div>
       </div>
       <div class="modal-actions">
@@ -259,6 +286,8 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 </div>
 
+<script src="js/config.js"></script>
+<script src="js/cloud.js"></script>
 <script src="js/towers.js"></script>
 <script src="js/questions.js"></script>
 <script src="js/waves.js"></script>

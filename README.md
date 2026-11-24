@@ -2,13 +2,34 @@
 
 A tabletop tower defense game for K–6 students. Solve math problems to earn energy, then build and evolve brass-and-wood towers that guard a felt path across a cardboard board. There are 108 tower evolutions, 18 math topics and a 100-wave campaign.
 
-**To play, double-click `index.html`.** It needs no install, no server and no internet connection.
+**To play, double-click `index.html`.** It needs no install and no server. With no internet connection it runs session-only.
 
-## Session only, by design
+## Saving progress with a class code (optional)
 
-- It saves nothing: no `localStorage`, `sessionStorage`, cookies, IndexedDB, database or network calls. Every value lives in JavaScript variables and disappears when the tab closes.
-- It loads nothing from the internet: no fonts, no libraries, no images. Everything is drawn with canvas code.
-- The browser test counts every storage call and network request. Both are zero.
+- A teacher creates a class in Teacher Mode and gets a 6-character class code. Students type that code and a nickname on the start screen. **No emails, real names, sign-ins or accounts.**
+- The nickname's rating, best wave, games played, accuracy by topic and weakest facts are saved to the class on Supabase. Saves go out every 5 waves, at game end, on quit and when the tab closes. Each save carries only what changed since the last one.
+- Without a class code, or when the server can't be reached, the game plays session-only exactly as before.
+- Nothing is ever stored in the browser: no `localStorage`, `sessionStorage`, cookies or IndexedDB. The game loads no fonts, libraries or images from the internet.
+
+### Setting up the class server
+
+1. Create a Supabase project, open **SQL Editor**, paste in `supabase/schema.sql` and run it.
+2. Copy the project URL and the **publishable** key into `js/config.js`. This copy is already connected to the `math-defenders` project.
+3. Leave `url` empty in `js/config.js` to turn class saving off completely.
+
+### How it's protected
+
+- Both tables have Row Level Security on with no policies, so the public key can't read or change them directly. The game can only call six database functions, and each one checks its inputs.
+- The class PIN is stored as a bcrypt hash. Ten wrong PINs lock the class for 15 minutes.
+- Saves are clamped to sensible values: a rating can move at most 400 points per save, and "correct" can never exceed "answered".
+- Each class holds up to 200 students, and at most 60 classes can be created per minute across the whole server.
+- A nickname has no password, so anyone with the class code who types the same nickname plays as that student. Teachers can remove nicknames from the roster.
+
+### Built for 10,000 students
+
+Each student sends a save about every 3 minutes, so 10,000 students playing at once make about 55 small requests per second. On a 2-core test machine with 10,000 students in 400 classes, the database handled about **5,000 saves per second** (4 ms each) and **12,500 joins per second**. On the live Supabase Free project, 500 students joining at the same instant all succeeded (slowest 8 seconds), and 500 simultaneous saves all succeeded (slowest 6 seconds). When the server is busy, the game retries after a random short wait so students don't all retry at the same instant. The game itself never waits on the server: play continues while saves happen in the background.
+
+On Supabase's **Free plan**, a project pauses after 7 days without activity (for example over a school break) and must be restored from the Supabase dashboard. The Pro plan ($25/month) never pauses.
 
 ## How to play
 
@@ -65,10 +86,11 @@ node tools/balance-sim.js meadow 1 4 0.8 3
 
 ## Wave 20 milestone and Teacher Mode
 
-- After clearing wave 20 the game pauses on a **"Milestone Reached: Wave 20!"** card. It shows a **Create Account (Coming Soon)** preview and a **Keep Playing to Wave 100** button.
-- **Teacher PIN:** the first time Teacher Mode opens, the teacher creates a 4–6 digit PIN (typed twice). It's asked for every time Teacher Mode opens after that. It lives in memory only, so it resets when the tab closes. It keeps students out of the teacher view; it isn't real account security.
-- **Class code:** a 6-character code made when the page opens, shown in the Teacher panel with **New code** and **Copy**. It also fills the Create Account preview card. It's per session and doesn't connect students yet; that needs the account system.
-- **Export CSV:** downloads a report of this session (student, class code, wave, rating, accuracy, streaks, accuracy by topic, weakest facts). This is the only time a file is written, and only when the teacher clicks the button.
+- After clearing wave 20 the game pauses on a **"Milestone Reached: Wave 20!"** card. It shows whether progress is being saved to a class and a **Keep Playing to Wave 100** button.
+- **Teacher PIN:** the first time Teacher Mode opens on a device, the teacher creates a 4–6 digit PIN (typed twice). It's asked for every time Teacher Mode opens after that. On that device it lives in memory only, so it resets when the tab closes.
+- **Create class:** makes a saved class whose PIN is the teacher PIN just entered. **Open a class** on any device with the class code and PIN. The panel shows the class roster (rating, best wave, problems answered, accuracy, last played) with **Refresh**, **Remove** for each student, and **Export class CSV**.
+- **Export CSV:** downloads a report of this device's session. **Export class CSV** downloads the whole roster with accuracy by topic and each student's weakest facts. Files are written only when the teacher clicks a button.
+- If no class server is configured, the panel shows a per-session class code instead (with **New code** and **Copy**).
 - **Teacher Mode** is a **Student / Teacher** tab on the start screen (top left) and a **Teacher** button in the game's top bar. From the start screen, a teacher can set the math topic before the student begins. During a game it opens the Class Preview and pauses play. Teachers can change the active math topic on the spot and see live accuracy, current and best streak, problems answered, accuracy by topic, the weakest math facts and what is being re-practiced.
 - The **session rating** (Elo) and its 7 rank badges (Rookie → Legend) update live: correct answers and cleared waves raise it, and misses and leaks lower it.
 
@@ -77,6 +99,9 @@ node tools/balance-sim.js meadow 1 4 0.8 3
 ```
 index.html        screens and modals
 styles.css        Clockwork & Cardboard theme
+js/config.js      Supabase project URL and publishable key (empty = offline)
+js/cloud.js       class saving: fetch calls to the database functions, retries
+supabase/schema.sql  tables, security and functions for class saving
 js/towers.js      drawing helpers, 12 chassis, 108 evolutions, stats, tower art
 js/questions.js   18 topic generators, distractors, session mastery tracking
 js/waves.js       9 enemy types, 100-wave campaign, milestones, enemy art
@@ -89,4 +114,4 @@ Each script shares one `MD` namespace and loads as a plain `<script>`, not `type
 
 ## Built to handle thousands of students
 
-Everything runs in each student's own browser, so there is no server to overload. Enemies (240), shots, effects and puddles are capped. In testing, 157 enemies on screen took 0.15 ms per update. Each frame's time step is clamped, a bad frame is caught and logged instead of freezing the game, and the game pauses when the tab is hidden.
+The game runs in each student's own browser, and class saving is small, occasional and never blocks play (see above). Enemies (240), shots, effects and puddles are capped. In testing, 157 enemies on screen took 0.15 ms per update. Each frame's time step is clamped, a bad frame is caught and logged instead of freezing the game, and the game pauses when the tab is hidden.

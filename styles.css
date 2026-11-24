@@ -358,6 +358,17 @@ kbd {
 .class-code { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--slate); font-weight: 800; }
 .class-code b { font: 900 1.4rem var(--f-display); letter-spacing: .14em; color: var(--ink); background: var(--paper); border: 2px solid var(--ink); border-radius: 8px; padding: 0 .45em; }
 .t-actions { align-items: center; justify-content: space-between; margin-top: auto; padding-top: 6px; }
+.field label .opt { text-transform: none; letter-spacing: 0; font-weight: 700; }
+#class-code, #t-open-code { text-transform: uppercase; letter-spacing: .12em; }
+#class-field .form-error:empty { min-height: 0; }
+.t-class { display: flex; flex-direction: column; gap: 8px; }
+.t-class-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.t-class-row .t-h { margin: 0; margin-right: auto; }
+.t-class-row input { width: 8.5em; font: 800 1rem var(--f-body, inherit); padding: .35em .55em; color: var(--ink); background: var(--paper); border: 2px solid var(--ink); border-radius: 8px; outline: none; }
+.t-class-row input:focus { box-shadow: 0 0 0 4px var(--brass-l); }
+.t-table .t-del { padding: 0 .5em; font-size: .8rem; }
+.save-chip { display: inline-block; margin-left: 6px; padding: 1px 8px; font-size: .75rem; font-weight: 800; border: 2px solid var(--ink); border-radius: 99px; background: #DCFCE7; vertical-align: middle; }
+.save-chip.off { background: #FEF3C7; }
 
 /* Milestone */
 .milestone { text-align: center; }
