@@ -276,7 +276,8 @@
   }
 
   /* ================= Math bar ================= */
-  function fastLimit(p) { return p.text.length > 26 ? 11 : p.text.length > 16 ? 8 : 6; }
+  // Seconds to answer and still count as "fast" for the streak. Longer problems get more time.
+  function fastLimit(p) { return p.text.length > 26 ? 18 : p.text.length > 16 ? 13 : 10; }
   function nextProblem() {
     S.problem = S.session.next();
     S.shownAt = performance.now(); S.locked = false;
@@ -465,7 +466,7 @@
 
     const now = performance.now();
     if (now >= S.jamUntil && !$('mb-jam').hidden) { $('mb-jam').hidden = true; nextProblem(); }
-    const lim = S.problem ? fastLimit(S.problem) : 6;
+    const lim = S.problem ? fastLimit(S.problem) : 10;
     const left = S.paused ? 1 : Math.max(0, 1 - (now - S.shownAt) / 1000 / lim);
     const f = $('mb-timer-fill');
     f.style.transform = 'scaleX(' + left.toFixed(3) + ')';
