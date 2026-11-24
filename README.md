@@ -2,7 +2,7 @@
 
 A tabletop tower defense game for K–6 students. Solve math problems to earn energy, then build and evolve brass-and-wood towers that guard a felt path across a cardboard board. There are 108 tower evolutions, 18 math topics and a 100-wave campaign.
 
-**To play, double-click `index.html`.** It needs no install and no server. With no internet connection it runs session-only.
+**Play online: https://prasenjit2010.github.io/math-defenders/** (hosted free on GitHub Pages; updates automatically when files change on GitHub). Or double-click `index.html`. It needs no install. With no internet connection it runs session-only.
 
 ## Saving progress with a class code (optional)
 
