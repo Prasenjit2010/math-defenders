@@ -1,6 +1,7 @@
 /* Math Defenders — main.js
    Screens, HUD, math bar, build/upgrade menus, Tower Almanac, Teacher view,
-   session rating, sound and the main loop. Session-only: no storage of any kind. */
+   session rating, sound and the main loop. Nothing is stored in the browser. Progress is
+   saved only when a student joins a class code (see cloud.js), and only on the server. */
 (function (MD) {
   'use strict';
   const T = MD.Towers, Q = MD.Questions, W = MD.Waves, B = MD.Board;
@@ -25,7 +26,9 @@
     ui: { hoverPad: -1, selectedPad: -1, rangeFor: null, castleHurt: 0, time: 0, showArrow: true },
     problem: null, shownAt: 0, pausedAt: 0, jamUntil: 0, locked: false, fast: 0,
     elo: 1000, milestoneShown: false, muted: false, teacherPaused: false,
-    teacher: { pin: null, classCode: null },   // memory only: forgotten when the tab closes
+    teacher: { pin: null, classCode: null, cloudCode: null, cloudPin: null, roster: [] },   // memory only
+    cloud: { player: null, code: '', base: null, games: 0, bestWave: 0, lastElo: 0, saving: false, dirty: false, warned: false },
+    joining: false,
     scale: 1, hud: {}, icons: {}, errors: 0, alm: { chassis: 'dart', path: 'A', tier: 1, tab: 'towers' }
   };
 
@@ -123,6 +126,51 @@
     if (after > before) { banner('Rank up: ' + RANKS[after].name + '!', 'good'); Sound.play('rank'); }
   }
 
+  /* ================= Class saving (optional, see cloud.js) ================= */
+  const C = MD.Cloud;
+  const cloudOn = () => !!(C && C.enabled());
+  function snapBase() {
+    const ss = S.session, by = {};
+    Object.keys(ss.byCat).forEach(k => { by[k] = { a: ss.byCat[k].a, c: ss.byCat[k].c }; });
+    return { answered: ss.answered, correct: ss.correct, by };
+  }
+  /* Sends only what changed since the last save. Called every 5 waves, at game end,
+     on quit and when the tab closes, so 10,000 students make light, spread-out traffic. */
+  function cloudSave(opts) {
+    opts = opts || {};
+    const cl = S.cloud;
+    if (!cl.player || !cloudOn()) return;
+    if (cl.saving && !opts.keepalive) { cl.dirty = true; return; }
+    const ss = S.session, b = cl.base, topics = {};
+    Object.keys(ss.byCat).forEach(k => {
+      const st = ss.byCat[k], o = b.by[k] || { a: 0, c: 0 };
+      if (st.a > o.a) topics[k] = { a: st.a - o.a, c: Math.max(0, st.c - o.c) };
+    });
+    if (S.game) cl.bestWave = Math.max(cl.bestWave, S.game.wavesCleared);
+    const dAns = ss.answered - b.answered;
+    if (!dAns && !cl.games && S.elo === cl.lastElo && cl.bestWave === cl.savedWave) return;
+    const payload = {
+      p_id: cl.player.id, p_code: cl.code, p_elo: S.elo, p_best_wave: cl.bestWave,
+      p_answered: dAns, p_correct: Math.max(0, ss.correct - b.correct), p_best_streak: ss.bestStreak,
+      p_games: cl.games, p_topics: topics,
+      p_weak: ss.weakest(8).map(w => ({ t: w.text.replace(' = ?', ''), a: String(w.answer), c: w.c, n: w.a }))
+    };
+    const nextBase = snapBase(), games = cl.games, elo = S.elo, wave = cl.bestWave;
+    const commit = () => { cl.base = nextBase; cl.games -= games; cl.lastElo = elo; cl.savedWave = wave; };
+    if (opts.keepalive) { commit(); C.save(payload, true).catch(() => { }); return; }
+    cl.saving = true;
+    C.save(payload, false).then(ok => {
+      if (ok === false) { cl.player = null; toast('Your teacher removed this nickname from the class. Progress is no longer saved.'); return; }
+      commit(); cl.warned = false;
+    }, () => {
+      if (!cl.warned) { cl.warned = true; toast('Could not save just now. The game will try again.'); }
+    }).then(() => { cl.saving = false; if (cl.dirty) { cl.dirty = false; cloudSave(); } });
+  }
+  function endGameForSave() {
+    if (S.game && !S.gameCounted && (S.game.wavesCleared > 0 || S.session.answered > (S.cloud.base ? S.cloud.base.answered : 0))) { S.gameCounted = true; S.cloud.games++; }
+    cloudSave();
+  }
+
   /* ================= Start screen ================= */
   function setupStart() {
     renderBand();
@@ -175,6 +223,8 @@
 
   /* ================= Game start / end ================= */
   function startGame(startWave) {
+    if (S.game && !S.ended) endGameForSave();
+    S.gameCounted = false;
     if (startWave) S.startWave = startWave;
     S.game = new MD.Engine({ mapId: S.mapId, startWave: S.startWave });
     S.paused = false; S.speed = 1; S.ended = false; S.locked = false; S.jamUntil = 0; S.fast = 0;
@@ -206,7 +256,9 @@
     const g = S.game, ss = S.session, acc = ss.accuracy();
     $('res-title').textContent = won ? 'Victory!' : 'Clocktower fallen';
     $('res-title').classList.toggle('win', won);
-    $('res-sub').textContent = won ? S.nick + ' held all 100 waves. Incredible.' : S.nick + ' reached wave ' + g.wave + ' (' + W.eraFor(Math.max(1, g.wave)).name + ').';
+    $('res-sub').textContent = (won ? S.nick + ' held all 100 waves. Incredible.' : S.nick + ' reached wave ' + g.wave + ' (' + W.eraFor(Math.max(1, g.wave)).name + ').')
+      + (S.cloud.player ? ' Progress saved to class ' + S.cloud.code + '.' : '');
+    endGameForSave();
     $('res-grid').innerHTML = [['Waves cleared', g.wavesCleared + '/100'], ['Math accuracy', acc === null ? '—' : Math.round(acc * 100) + '%'], ['Problems solved', ss.correct], ['Best streak', ss.bestStreak]]
       .map(r => '<div class="stat-tile"><span class="eyebrow">' + r[0] + '</span><b>' + r[1] + '</b></div>').join('');
     const ri = rankIndex(S.elo);
@@ -217,6 +269,7 @@
   }
 
   function backToStart() {
+    if (S.game) endGameForSave();
     ['modal-pause', 'modal-results', 'modal-milestone', 'modal-teacher'].forEach(closeModal);
     S.game = null; S.paused = false; setTeacherBtn(false);
     show('start');
@@ -433,6 +486,7 @@
           const n = e.data.wave, acc = S.session.accuracy();
           addElo(Math.round((3 + n * 0.12) * (acc !== null && acc >= 0.85 ? 1.5 : 1)));
           if (n === 20 && !S.milestoneShown) { S.milestoneShown = true; setTimeout(showMilestone, 900); }
+          if (n % 5 === 0) cloudSave();
           break;
         }
         case 'leak': S.ui.castleHurt = 1; bump('pill-hearts', 'hurt'); Sound.play('leak'); addElo(-e.data); break;
@@ -458,7 +512,13 @@
     $('ms-stats').innerHTML = [['Waves cleared', '20'], ['Math accuracy', acc === null ? '—' : Math.round(acc * 100) + '%'], ['Problems solved', ss.correct], ['Session rating', S.elo + ' · ' + RANKS[rankIndex(S.elo)].name], ['Towers built', S.game.stats.built], ['Best streak', ss.bestStreak]]
       .map(r => '<div class="stat-tile"><span class="eyebrow">' + r[0] + '</span><b>' + r[1] + '</b></div>').join('');
     $('acc-name').value = S.nick;
-    $('acc-class').value = S.teacher.classCode;
+    const saved = !!S.cloud.player;
+    $('acc-class').value = saved ? S.cloud.code : '';
+    $('acc-eyebrow').textContent = saved ? 'Saved' : 'Not saved';
+    $('acc-title').textContent = saved ? 'Progress saved' : 'Save your progress';
+    $('acc-note').textContent = saved ? 'Your rating and best wave are saved to your class every 5 waves. Use the same nickname and class code next time.'
+      : cloudOn() ? 'Ask your teacher for a class code. Next time, type it on the start screen and your rank and best wave will be saved.'
+      : 'This copy of the game is not connected to a class server, so progress lasts until you close the tab.';
     openModal('modal-milestone');
     Sound.play('won');
   }
@@ -514,7 +574,7 @@
     const topic = ss.topic.indexOf('cat:') === 0 ? Q.byId[ss.topic.slice(4)].name : 'Mixed ' + (Q.BANDS.find(b => 'band:' + b.id === ss.topic) || Q.BANDS[0]).name;
     const rows = [
       ['Math Defenders session report'],
-      ['Student', S.nick || '(not started)'], ['Class code', S.teacher.classCode], ['Date', new Date().toLocaleString('en-US')],
+      ['Student', S.nick || '(not started)'], ['Class code', S.cloud.code || S.teacher.cloudCode || S.teacher.classCode], ['Date', new Date().toLocaleString('en-US')],
       ['Map', g ? g.map.name : ''], ['Wave reached', g ? g.wave : 0], ['Waves cleared', g ? g.wavesCleared : 0],
       ['Session rating', S.elo], ['Rank', RANKS[rankIndex(S.elo)].name], ['Active topic', topic],
       ['Problems answered', ss.answered], ['Problems correct', ss.correct], ['Math accuracy %', acc === null ? '' : Math.round(acc * 100)],
@@ -524,21 +584,92 @@
     Q.CATS.filter(c => ss.byCat[c.id]).forEach(c => { const st = ss.byCat[c.id]; rows.push([c.name, c.grade, st.a, st.c, Math.round(st.c / st.a * 100)]); });
     rows.push([], ['Weakest math facts', 'Correct answer', 'Right', 'Tries']);
     ss.weakest(20).forEach(w => rows.push([w.text.replace(' = ?', ''), w.answer, w.c, w.a]));
-    const csv = rows.map(r => r.map(v => { v = String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(',')).join('\r\n');
+    downloadCSV(rows, S.nick || 'session');
+  }
+  function downloadCSV(rows, name) {
+    const csv = rows.map(r => r.map(v => { v = String(v); if (/^[=+\-@]/.test(v) && isNaN(+v)) v = "'" + v; return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(',')).join('\r\n');
     try {
       const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'math-defenders-' + (S.nick || 'session').replace(/[^\w-]+/g, '-').toLowerCase() + '-' + (d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'))(new Date()) + '.csv';
+      a.download = 'math-defenders-' + String(name).replace(/[^\w-]+/g, '-').toLowerCase() + '-' + (d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'))(new Date()) + '.csv';
       document.body.appendChild(a); a.click();
       setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
       toast('Report downloaded');
     } catch (err) { toast('This browser could not create the file'); }
   }
 
+  /* Saved class (teacher side): create, open, roster, remove, class CSV. */
+  function shownCode() { return cloudOn() ? (S.teacher.cloudCode || '——') : S.teacher.classCode; }
+  function renderClass() {
+    const on = cloudOn(), open = on && !!S.teacher.cloudCode;
+    $('t-class').hidden = !on;
+    $('t-newcode').hidden = on;
+    $('t-switch').hidden = !open;
+    $('t-copycode').hidden = on && !open;
+    $('t-code').textContent = shownCode();
+    if (!on) return;
+    $('t-class-none').hidden = open; $('t-class-open').hidden = !open;
+    if (!open) { if (!$('t-open-code').value && S.cloud.code) $('t-open-code').value = S.cloud.code; return; }
+    const r = S.teacher.roster;
+    $('t-roster-title').textContent = 'Class roster · ' + r.length + (r.length === 1 ? ' student' : ' students');
+    $('t-roster').innerHTML = r.length ? r.map(p => {
+      const acc = p.answered ? Math.round(p.correct / p.answered * 100) + '%' : '—';
+      const last = p.updated_at ? new Date(p.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+      return '<tr><td>' + esc(p.nickname) + '</td><td class="num">' + p.elo + '</td><td class="num">' + p.best_wave + '</td><td class="num">' + p.answered + '</td><td class="num">' + acc + '</td><td>' + last + '</td><td><button class="btn btn-paper btn-xs t-del" type="button" data-id="' + esc(p.id) + '">Remove</button></td></tr>';
+    }).join('') : '<tr><td colspan="7" class="empty">No students yet. Share the class code above.</td></tr>';
+  }
+  function classError(msg) { $('t-class-error').textContent = msg || ''; }
+  function busy(btn, on, label) { btn.disabled = on; if (on) { btn.dataset.label = btn.textContent; btn.textContent = label; } else if (btn.dataset.label) btn.textContent = btn.dataset.label; }
+  async function loadRoster(code, pin, btn) {
+    classError('');
+    if (btn) busy(btn, true, 'Loading…');
+    try {
+      const res = await C.report(code, pin);
+      if (!Array.isArray(res)) { classError('That class code or PIN is not right.'); return false; }
+      S.teacher.cloudCode = C.cleanCode(code); S.teacher.cloudPin = pin; S.teacher.roster = res;
+      renderClass();
+      return true;
+    } catch (err) { classError(err.server ? err.message : 'Could not reach the class server. Check the internet connection.'); return false; }
+    finally { if (btn) busy(btn, false); }
+  }
+  async function createClass() {
+    classError('');
+    const btn = $('t-create'); busy(btn, true, 'Creating…');
+    try {
+      const code = await C.createClass(S.teacher.pin);
+      S.teacher.cloudCode = code; S.teacher.cloudPin = S.teacher.pin; S.teacher.roster = [];
+      renderClass();
+      toast('Class ' + code + ' created. Your class PIN is your teacher PIN.');
+    } catch (err) { classError(err.server ? err.message : 'Could not reach the class server. Check the internet connection.'); }
+    finally { busy(btn, false); }
+  }
+  async function removeStudent(btn) {
+    if (btn.dataset.sure !== '1') { btn.dataset.sure = '1'; btn.textContent = 'Sure?'; setTimeout(() => { if (btn.isConnected) { btn.dataset.sure = ''; btn.textContent = 'Remove'; } }, 4000); return; }
+    busy(btn, true, '…');
+    try {
+      const ok = await C.removePlayer(S.teacher.cloudCode, S.teacher.cloudPin, btn.dataset.id);
+      if (!ok) { toast('Could not remove that student.'); busy(btn, false); return; }
+      S.teacher.roster = S.teacher.roster.filter(p => p.id !== btn.dataset.id);
+      renderClass(); toast('Student removed');
+    } catch (err) { toast(err.server ? err.message : 'Could not reach the class server.'); busy(btn, false); }
+  }
+  function exportClassCSV() {
+    const r = S.teacher.roster, used = Q.CATS.filter(c => r.some(p => p.topics && p.topics[c.id]));
+    const rows = [['Math Defenders class report'], ['Class code', S.teacher.cloudCode], ['Date', new Date().toLocaleString('en-US')], ['Students', r.length], [],
+      ['Nickname', 'Rating', 'Rank', 'Best wave', 'Games', 'Answered', 'Correct', 'Accuracy %', 'Best streak', 'Last played', 'Weakest facts'].concat(used.map(c => c.name + ' %'))];
+    r.forEach(p => rows.push([p.nickname, p.elo, RANKS[rankIndex(p.elo)].name, p.best_wave, p.games, p.answered, p.correct,
+      p.answered ? Math.round(p.correct / p.answered * 100) : '', p.best_streak, p.updated_at ? new Date(p.updated_at).toLocaleDateString('en-US') : '',
+      (p.weak || []).slice(0, 5).map(w => w.t + ' = ' + w.a).join('; ')]
+      .concat(used.map(c => { const t = p.topics && p.topics[c.id]; return t && t.a ? Math.round(t.c / t.a * 100) : ''; }))));
+    downloadCSV(rows, 'class-' + S.teacher.cloudCode);
+  }
+
   function openTeacher() {
     setTeacherBtn(true);
-    $('t-code').textContent = S.teacher.classCode;
+    classError('');
+    renderClass();
+    if (cloudOn() && S.teacher.cloudCode) loadRoster(S.teacher.cloudCode, S.teacher.cloudPin);
     const sel = $('t-topic'); sel.innerHTML = '';
     const og = document.createElement('optgroup'); og.label = 'Mixed by grade';
     Q.BANDS.forEach(b => { const o = new Option('Mixed: ' + b.name, 'band:' + b.id); og.appendChild(o); });
@@ -562,8 +693,8 @@
     const ss = S.session, acc = ss.accuracy(), ri = rankIndex(S.elo);
     const inGame = !!S.game && $('screen-game').classList.contains('active');
     $('t-title').textContent = inGame ? (S.nick || 'Student') + ' · Wave ' + S.game.wave : (ss.answered ? 'This session so far' : 'Before the game starts');
-    $('t-note').textContent = inGame ? 'The game is paused while this view is open. Everything here disappears when the tab closes.'
-      : 'Pick the math topic before your student starts. Live stats appear here once they answer. Nothing is saved after the tab closes.';
+    $('t-note').textContent = (inGame ? 'The game is paused while this view is open. ' : 'Pick the math topic before your student starts. ')
+      + (cloudOn() ? 'Live stats below are for this device. The class roster is saved on the class server.' : 'Everything here disappears when the tab closes.');
     $('t-close').textContent = inGame ? 'Back to game' : 'Back to start';
     $('t-tiles').innerHTML =
       '<div class="t-tile"><span class="eyebrow">Live accuracy</span><b>' + (acc === null ? '—' : Math.round(acc * 100) + '%') + '</b></div>' +
@@ -676,14 +807,39 @@
 
   /* ================= Wiring ================= */
   function wire() {
-    $('start-form').addEventListener('submit', e => {
+    $('start-form').addEventListener('submit', async e => {
       e.preventDefault();
-      const n = $('nick').value.trim();
+      if (S.joining) return;
+      const n = $('nick').value.trim().replace(/\s+/g, ' ');
       if (!n) { $('nick').focus(); toast('Type a nickname to start'); return; }
       S.nick = n.slice(0, 18);
+      Sound.unlock();
+      let hello = '';
+      const cl = S.cloud, err = $('class-error');
+      err.textContent = '';
+      const code = cloudOn() ? C.cleanCode($('class-code').value) : '';
+      const same = cl.player && cl.code === code && cl.player.nickname.toLowerCase() === S.nick.toLowerCase();
+      if (cl.player && !same) { cloudSave(); cl.player = null; }
+      if (code && !same) {
+        if (!C.validCode(code)) { err.textContent = 'Class codes are 6 letters and numbers, like K7QM2P.'; $('class-code').focus(); return; }
+        const btn = $('start-form').querySelector('button[type=submit]');
+        S.joining = true; busy(btn, true, 'Joining class…');
+        try {
+          const p = await C.join(code, S.nick);
+          if (!p) { err.textContent = 'We could not find that class code. Check it with your teacher.'; $('class-code').focus(); return; }
+          Object.assign(cl, { player: p, code, base: snapBase(), games: 0, bestWave: p.best_wave, savedWave: p.best_wave, lastElo: p.elo, warned: false });
+          S.nick = p.nickname; S.elo = p.elo;
+          hello = p.returning ? 'Welcome back, ' + p.nickname + '! Your rating is ' + p.elo + '.' : 'Joined class ' + code + '. Progress will be saved.';
+        } catch (x) {
+          if (x.server) { err.textContent = x.message; return; }
+          hello = 'Could not reach the class server. Playing without saving.';
+        } finally { S.joining = false; busy(btn, false); }
+      }
       if (S.session.topic.indexOf('band:') === 0) S.session.topic = 'band:' + S.band;
-      Sound.unlock(); startGame();
+      startGame();
+      if (hello) setTimeout(() => toast(hello), 50);
     });
+    window.addEventListener('pagehide', () => { if (S.cloud.player) cloudSave({ keepalive: true }); });
     $('btn-almanac-start').addEventListener('click', openAlmanac);
     $('btn-almanac').addEventListener('click', openAlmanac);
     $('alm-close').addEventListener('click', closeAlmanac);
@@ -710,8 +866,20 @@
     $('pin-cancel').addEventListener('click', cancelPin);
     $('t-csv').addEventListener('click', exportCSV);
     $('t-newcode').addEventListener('click', () => { S.teacher.classCode = makeCode(); $('t-code').textContent = S.teacher.classCode; toast('New class code: ' + S.teacher.classCode); });
+    $('t-create').addEventListener('click', createClass);
+    $('t-open').addEventListener('click', () => {
+      const code = C.cleanCode($('t-open-code').value), pin = $('t-open-pin').value.trim();
+      if (!C.validCode(code)) return classError('Class codes are 6 letters and numbers.');
+      if (!/^\d{4,6}$/.test(pin)) return classError('The class PIN is 4 to 6 digits.');
+      loadRoster(code, pin, $('t-open')).then(ok => { if (ok) $('t-open-pin').value = ''; });
+    });
+    $('t-open-pin').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('t-open').click(); } });
+    $('t-refresh').addEventListener('click', () => loadRoster(S.teacher.cloudCode, S.teacher.cloudPin, $('t-refresh')));
+    $('t-class-csv').addEventListener('click', exportClassCSV);
+    $('t-switch').addEventListener('click', () => { S.teacher.cloudCode = null; S.teacher.cloudPin = null; S.teacher.roster = []; $('t-open-code').value = ''; classError(''); renderClass(); });
+    $('t-roster').addEventListener('click', e => { const b = e.target.closest('.t-del'); if (b) removeStudent(b); });
     $('t-copycode').addEventListener('click', () => {
-      const code = S.teacher.classCode;
+      const code = cloudOn() ? S.teacher.cloudCode : S.teacher.classCode;
       const done = () => toast('Copied ' + code);
       try { navigator.clipboard.writeText(code).then(done, () => toast('Class code: ' + code)); } catch (err) { toast('Class code: ' + code); }
     });
@@ -752,6 +920,8 @@
 
   function boot() {
     S.teacher.classCode = makeCode();
+    if (!cloudOn()) $('class-field').hidden = true;
+    else $('start-fine').textContent = 'With a class code, your nickname, rating and best wave are saved for your teacher. No emails or real names. Without one, nothing is saved.';
     wire(); setupStart();
     requestAnimationFrame(frame);
     MD.debug = S;   // handy in the console; still memory-only
