@@ -361,6 +361,11 @@ kbd {
 .field label .opt { text-transform: none; letter-spacing: 0; font-weight: 700; }
 #class-code, #t-open-code { text-transform: uppercase; letter-spacing: .12em; }
 #class-code::placeholder, #t-open-code::placeholder { text-transform: none; letter-spacing: 0; }
+.class-note { margin: 0 0 6px; padding: 6px 10px; font-weight: 800; border: 2px solid var(--ink); border-radius: 8px; background: #DCFCE7; }
+.t-share { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 2px dashed var(--ink); border-radius: 10px; }
+.t-share .note { margin: 0; }
+.t-link-row input { flex: 1 1 14em; min-width: 0; width: auto; font: 700 .85rem ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0; text-transform: none; }
+#t-code2 { letter-spacing: .12em; }
 #class-field .form-error:empty { min-height: 0; }
 .t-class { display: flex; flex-direction: column; gap: 8px; }
 .t-class-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

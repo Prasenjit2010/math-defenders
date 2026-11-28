@@ -44,8 +44,9 @@
           <input id="nick" maxlength="18" placeholder="e.g. Gear Captain" required>
         </div>
         <div class="field" id="class-field">
-          <label for="class-code">Class code <span class="opt">(optional, saves your progress)</span></label>
-          <input id="class-code" maxlength="7" placeholder="From your teacher, e.g. K7QM2P" autocapitalize="characters" spellcheck="false">
+          <label for="class-code">Class code <span class="opt">(from your teacher, saves your progress)</span></label>
+          <div id="class-note" class="class-note" hidden></div>
+          <input id="class-code" maxlength="8" placeholder="e.g. K7QM2P" autocapitalize="characters" autocomplete="off" spellcheck="false">
           <div id="class-error" class="form-error" role="alert"></div>
         </div>
         <div class="field">
@@ -192,22 +193,29 @@
       <div id="t-class" class="t-class card-inset" hidden>
         <div id="t-class-none">
           <h3 class="t-h">Saved class</h3>
-          <p class="note">Create a class to save every student's progress. Students type the class code and a nickname. No emails or real names are needed. Your class PIN is the teacher PIN you just entered.</p>
+          <p class="note">Create a class to save every student's progress. Students join with the class code (or a link) and a nickname. No emails or real names are needed. <b>Your class PIN is the teacher PIN you just entered.</b> Remember it: you need it to open the class on another day or device.</p>
           <div class="t-class-row">
             <button id="t-create" class="btn btn-felt btn-sm" type="button">Create class</button>
             <span class="note">or open one:</span>
             <input id="t-open-code" maxlength="7" placeholder="Class code" aria-label="Class code to open" spellcheck="false">
-            <input id="t-open-pin" type="password" inputmode="numeric" maxlength="6" placeholder="PIN" aria-label="Class PIN">
+            <input id="t-open-pin" type="password" inputmode="numeric" maxlength="6" placeholder="Class PIN" aria-label="Class PIN (the PIN you used when you created the class)">
             <button id="t-open" class="btn btn-paper btn-sm" type="button">Open</button>
           </div>
           <div id="t-class-error" class="form-error" role="alert"></div>
         </div>
         <div id="t-class-open" hidden>
+          <div class="t-share">
+            <p class="note">Students: open <b id="t-site">mathdefenders.vercel.app</b>, type a nickname and the class code <b id="t-code2"></b>. Or send them this link, which fills in the code for them:</p>
+            <div class="t-class-row t-link-row"><input id="t-student-link" readonly aria-label="Student link"><button id="t-copy-student" class="btn btn-felt btn-xs" type="button">Copy student link</button></div>
+            <div class="t-class-row t-link-row"><input id="t-teacher-link" readonly aria-label="Teacher link"><button id="t-copy-teacher" class="btn btn-paper btn-xs" type="button">Copy teacher link</button></div>
+            <p class="note">Bookmark the teacher link to reopen this class later. You'll type your class PIN to open it.</p>
+          </div>
           <div class="t-class-row">
             <h3 class="t-h" id="t-roster-title">Class roster</h3>
             <button id="t-refresh" class="btn btn-paper btn-xs" type="button">Refresh</button>
             <button id="t-class-csv" class="btn btn-brass btn-xs" type="button">Export class CSV</button>
           </div>
+          <p class="note" id="t-updated"></p>
           <div class="table-wrap"><table class="t-table"><thead><tr><th>Nickname</th><th class="num">Rating</th><th class="num">Best wave</th><th class="num">Answered</th><th class="num">Accuracy</th><th>Last played</th><th></th></tr></thead><tbody id="t-roster"></tbody></table></div>
         </div>
       </div>

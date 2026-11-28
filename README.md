@@ -7,7 +7,11 @@ A tabletop tower defense game for K–6 students. Solve math problems to earn en
 ## Saving progress with a class code (optional)
 
 - A teacher creates a class in Teacher Mode and gets a 6-character class code. Students type that code and a nickname on the start screen. **No emails, real names, sign-ins or accounts.**
-- The nickname's rating, best wave, games played, accuracy by topic and weakest facts are saved to the class on Supabase. Saves go out every 5 waves, at game end, on quit and when the tab closes. Each save carries only what changed since the last one.
+- **Student link:** the Teacher panel shows a link like `mathdefenders.vercel.app/?class=K7QM2P` with a **Copy** button. Opening it fills in the class code for the student, so they only type a nickname.
+- **Teacher link:** `mathdefenders.vercel.app/?teach=K7QM2P` reopens the class on any day or device. Open it, type the class PIN, and the roster appears. Bookmark it.
+- The roster refreshes by itself every 45 seconds while the Teacher panel is open, for 15 minutes; after that, click **Refresh**. A student appears as soon as they join, and their progress saves after their first wave and then every 3 waves.
+- Class codes never use O, I, 0 or 1, so they can't be confused with each other. If a student types one of those, the game tells them.
+- The nickname's rating, best wave, games played, accuracy by topic and weakest facts are saved to the class on Supabase. Saves go out after the first wave and then every 3 waves, at game end, on quit and when the tab closes. Each save carries only what changed since the last one.
 - Without a class code, or when the server can't be reached, the game plays session-only exactly as before.
 - Nothing is ever stored in the browser: no `localStorage`, `sessionStorage`, cookies or IndexedDB. The game loads no fonts, libraries or images from the internet.
 
@@ -27,7 +31,7 @@ A tabletop tower defense game for K–6 students. Solve math problems to earn en
 
 ### Built for 10,000 students
 
-Each student sends a save about every 3 minutes, so 10,000 students playing at once make about 55 small requests per second. On a 2-core test machine with 10,000 students in 400 classes, the database handled about **5,000 saves per second** (4 ms each) and **12,500 joins per second**. On the live Supabase Free project, 500 students joining at the same instant all succeeded (slowest 8 seconds), and 500 simultaneous saves all succeeded (slowest 6 seconds). When the server is busy, the game retries after a random short wait so students don't all retry at the same instant. The game itself never waits on the server: play continues while saves happen in the background.
+Each student sends a save about every 2 minutes, so 10,000 students playing at once make about 90 small requests per second. On a 2-core test machine with 10,000 students in 400 classes, the database handled about **5,000 saves per second** (4 ms each) and **12,500 joins per second**. On the live Supabase Free project, 500 students joining at the same instant all succeeded (slowest 8 seconds), and 500 simultaneous saves all succeeded (slowest 6 seconds). When the server is busy, the game retries after a random short wait so students don't all retry at the same instant. The game itself never waits on the server: play continues while saves happen in the background.
 
 On Supabase's **Free plan**, a project pauses after 7 days without activity (for example over a school break) and must be restored from the Supabase dashboard. The Pro plan ($25/month) never pauses.
 
