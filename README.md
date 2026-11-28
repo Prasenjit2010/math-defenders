@@ -59,12 +59,39 @@ On Supabase's **Free plan**, a project pauses after 7 days without activity (for
 
 The **Tower Almanac** (book icon) shows every evolution with its art, stats and cost, plus an enemy guide.
 
-## 18 math topics (`js/questions.js`)
+## 18 math topics, 77 kinds of question (`js/questions.js`)
 
-- **K–1:** Number Bonds to 10, Comparing Numbers (<, >, =), Missing Addends, Add & Subtract within 20
-- **2–3:** 2-Digit Regrouping, Place Value, Multiplication & Fact Families (2×–12×), Division with Remainders, Rounding to 10 & 100
-- **4–5:** Equivalent Fractions, Fraction Addition, Decimals & Money, Order of Operations, Area & Perimeter, Factors & Multiples
-- **6:** Ratios & Rates, Negative Numbers, Percent of a Number
+Each topic mixes several kinds of question, with new numbers every time:
+
+- **K–1**
+  - Number Bonds to 10: `7 + ? = 10`, `10 − 4 = ?`, which pair makes 10
+  - Comparing Numbers: `<` `>` `=`, which number is greatest or least
+  - Missing Addends: `? + 5 = 12`, `5 + ? = 12`, `14 − ? = 9`
+  - Add & Subtract within 20: plain facts, three numbers, short story problems
+- **2–3**
+  - Add & Subtract with Regrouping: 2-digit and 3-digit
+  - Place Value: digit in a place, value of a digit, build a number, expanded form, 10/100/1,000 more or less
+  - Multiplication & Fact Families (2×–12×): facts, arrays, missing factor, fact families, division, equal groups
+  - Division with Remainders: remainders, exact division, how many left over
+  - Rounding to 10, 100 & 1,000
+- **4–5**
+  - Equivalent Fractions: missing numerator, which fraction is equal, simplify, which is greater
+  - Fraction Addition: like and unlike denominators, subtraction, `1 − 3/8`
+  - Decimals & Money: adding money, making change, cost of several items, adding and subtracting decimals
+  - Order of Operations: with `×`, `÷` and parentheses
+  - Area & Perimeter: rectangles, squares, missing side from area or perimeter
+  - Factors & Multiples: factors, multiples, GCF, LCM, prime numbers
+- **6**
+  - Ratios & Rates: equivalent ratios, unit price, speed, ratio word problems
+  - Negative Numbers: add, subtract, multiply, which is greater
+  - Percent of a Number: percent of, what percent, sale price after a discount
+
+**Every question has exactly one right answer.** Before each release, two test programs check every kind of question, 20,000 or more of each. The first checks the answer choices. The second solves each question on its own, without using the game's code, and confirms exactly one choice is correct. For example, "What is the value of the 2 in 8,223?" can't appear, because the 2 is in two places. Wrong choices are never negative except in the negative-numbers topic. They never include a second fraction with the same value, like 2/4 next to 1/2.
+
+```
+node tools/check-choices.js   # answer choices: 3 different choices, answer listed once, no odd values
+node tools/check-answers.js   # independent solver: exactly one correct choice
+```
 
 **Session mastery:** when a student misses a problem type, a similar problem comes back two or three questions later (marked "Practice round"). It keeps coming back until they get it right.
 
@@ -108,6 +135,8 @@ js/waves.js       9 enemy types, 100-wave campaign, milestones, enemy art
 js/engine.js      maps, simulation (all 12 attack types, statuses, camo, shields), board renderer
 js/main.js        UI, math bar, Almanac, Teacher view, rating, sound, main loop
 tools/balance-sim.js  headless balance test (Node)
+tools/check-choices.js  question check: answer choices
+tools/check-answers.js  question check: independent solver
 ```
 
 Each script shares one `MD` namespace and loads as a plain `<script>`, not `type="module"`. Chrome blocks ES modules on pages opened straight from a file (`file://`), so this is what lets `index.html` run with a double-click. The code uses modern JavaScript (classes, arrow functions, `const`/`let`) throughout.
