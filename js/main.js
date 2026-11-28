@@ -134,7 +134,7 @@
     Object.keys(ss.byCat).forEach(k => { by[k] = { a: ss.byCat[k].a, c: ss.byCat[k].c }; });
     return { answered: ss.answered, correct: ss.correct, by };
   }
-  /* Sends only what changed since the last save. Called every 5 waves, at game end,
+  /* Sends only what changed since the last save. Called after wave 1 and every 3 waves, at game end,
      on quit and when the tab closes, so 10,000 students make light, spread-out traffic. */
   function cloudSave(opts) {
     opts = opts || {};
@@ -487,7 +487,7 @@
           const n = e.data.wave, acc = S.session.accuracy();
           addElo(Math.round((3 + n * 0.12) * (acc !== null && acc >= 0.85 ? 1.5 : 1)));
           if (n === 20 && !S.milestoneShown) { S.milestoneShown = true; setTimeout(showMilestone, 900); }
-          if (n % 5 === 0) cloudSave();
+          if (n === 1 || n % 3 === 0) cloudSave();   // first save early so teachers see the student, then every 3 waves
           break;
         }
         case 'leak': S.ui.castleHurt = 1; bump('pill-hearts', 'hurt'); Sound.play('leak'); addElo(-e.data); break;
@@ -517,7 +517,7 @@
     $('acc-class').value = saved ? S.cloud.code : '';
     $('acc-eyebrow').textContent = saved ? 'Saved' : 'Not saved';
     $('acc-title').textContent = saved ? 'Progress saved' : 'Save your progress';
-    $('acc-note').textContent = saved ? 'Your rating and best wave are saved to your class every 5 waves. Use the same nickname and class code next time.'
+    $('acc-note').textContent = saved ? 'Your rating and best wave are saved to your class every few waves. Use the same nickname and class code next time.'
       : cloudOn() ? 'Ask your teacher for a class code. Next time, type it on the start screen and your rank and best wave will be saved.'
       : 'This copy of the game is not connected to a class server, so progress lasts until you close the tab.';
     openModal('modal-milestone');
@@ -542,10 +542,11 @@
     S.teacherPaused = !!S.game && !S.ended && !S.paused && $('screen-game').classList.contains('active');
     if (S.game) { setPaused(true); closeMenus(); }
     setTeacherBtn(true);
-    pinStep = S.teacher.pin ? 'enter' : 'create'; pinFirst = '';
-    $('pin-title').textContent = pinStep === 'create' ? 'Create a teacher PIN' : 'Teacher PIN';
+    pinStep = S.teacher.pin ? 'enter' : S.teacher.pendingOpen ? 'class' : 'create'; pinFirst = '';
+    $('pin-title').textContent = pinStep === 'create' ? 'Create a teacher PIN' : pinStep === 'class' ? 'Open class ' + S.teacher.pendingOpen : 'Teacher PIN';
     $('pin-text').textContent = pinStep === 'create'
-      ? 'Choose a 4–6 digit PIN. It keeps students out of Teacher Mode until this tab closes.'
+      ? 'Choose a 4–6 digit PIN. It keeps students out of Teacher Mode, and it becomes your class PIN if you create a class.'
+      : pinStep === 'class' ? 'Type the class PIN you chose when you made this class.'
       : 'Enter your PIN to open Teacher Mode.';
     $('pin-input').value = ''; $('pin-error').textContent = '';
     openModal('modal-pin');
@@ -560,7 +561,9 @@
     e.preventDefault();
     const v = $('pin-input').value.trim();
     if (!/^\d{4,6}$/.test(v)) { $('pin-error').textContent = 'Use 4 to 6 digits.'; return; }
-    if (pinStep === 'create') {
+    if (pinStep === 'class') {
+      S.teacher.pin = v;
+    } else if (pinStep === 'create') {
       if (!pinFirst) { pinFirst = v; $('pin-input').value = ''; $('pin-text').textContent = 'Type the same PIN again to confirm.'; $('pin-error').textContent = ''; return; }
       if (v !== pinFirst) { pinFirst = ''; $('pin-input').value = ''; $('pin-text').textContent = 'Choose a 4–6 digit PIN.'; $('pin-error').textContent = 'The PINs did not match. Try again.'; return; }
       S.teacher.pin = v;
@@ -612,13 +615,33 @@
     if (!on) return;
     $('t-class-none').hidden = open; $('t-class-open').hidden = !open;
     if (!open) { if (!$('t-open-code').value && S.cloud.code) $('t-open-code').value = S.cloud.code; return; }
+    const code = S.teacher.cloudCode, base = siteBase();
+    $('t-code2').textContent = code;
+    $('t-site').textContent = base.replace(/^https?:\/\//, '').replace(/\/$/, '');
+    $('t-student-link').value = base + '?class=' + code;
+    $('t-teacher-link').value = base + '?teach=' + code;
+    const t = S.teacher;
+    $('t-updated').textContent = t.updatedAt ? 'Updated ' + new Date(t.updatedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })
+      + (Date.now() - t.openedAt < AUTO_REFRESH_FOR ? ' · refreshes every 45 seconds while this panel is open' : ' · click Refresh for the latest') : '';
     const r = S.teacher.roster;
     $('t-roster-title').textContent = 'Class roster · ' + r.length + (r.length === 1 ? ' student' : ' students');
     $('t-roster').innerHTML = r.length ? r.map(p => {
       const acc = p.answered ? Math.round(p.correct / p.answered * 100) + '%' : '—';
       const last = p.updated_at ? new Date(p.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
       return '<tr><td>' + esc(p.nickname) + '</td><td class="num">' + p.elo + '</td><td class="num">' + p.best_wave + '</td><td class="num">' + p.answered + '</td><td class="num">' + acc + '</td><td>' + last + '</td><td><button class="btn btn-paper btn-xs t-del" type="button" data-id="' + esc(p.id) + '">Remove</button></td></tr>';
-    }).join('') : '<tr><td colspan="7" class="empty">No students yet. Share the class code above.</td></tr>';
+    }).join('') : '<tr><td colspan="7" class="empty">No students yet. Students appear here as soon as they join with the code or link above.</td></tr>';
+  }
+  const AUTO_REFRESH_EVERY = 45000, AUTO_REFRESH_FOR = 15 * 60000;
+  function siteBase() { return /^https?:$/.test(location.protocol) ? location.origin + location.pathname : 'https://mathdefenders.vercel.app/'; }
+  function codeProblem(code) {
+    if (/[OI01]/.test(code)) return 'Class codes never use the letters O or I or the numbers 0 or 1. Check the code with your teacher.';
+    if (code.length !== 6) return 'Class codes are 6 letters and numbers, like K7QM2P.';
+    return C.validCode(code) ? '' : 'That doesn\'t look like a class code. Check it with your teacher.';
+  }
+  function copyText(text, input, label) {
+    const done = () => toast(label + ' copied');
+    const fallback = () => { try { input.focus(); input.select(); } catch (e) { } toast('Press Ctrl+C (or ⌘C) to copy'); };
+    try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
   }
   function classError(msg) { $('t-class-error').textContent = msg || ''; }
   function busy(btn, on, label) { btn.disabled = on; if (on) { btn.dataset.label = btn.textContent; btn.textContent = label; } else if (btn.dataset.label) btn.textContent = btn.dataset.label; }
@@ -628,7 +651,7 @@
     try {
       const res = await C.report(code, pin);
       if (!Array.isArray(res)) { classError('That class code or PIN is not right.'); return false; }
-      S.teacher.cloudCode = C.cleanCode(code); S.teacher.cloudPin = pin; S.teacher.roster = res;
+      S.teacher.cloudCode = C.cleanCode(code); S.teacher.cloudPin = pin; S.teacher.roster = res; S.teacher.updatedAt = Date.now();
       renderClass();
       return true;
     } catch (err) { classError(err.server ? err.message : 'Could not reach the class server. Check the internet connection.'); return false; }
@@ -639,7 +662,7 @@
     const btn = $('t-create'); busy(btn, true, 'Creating…');
     try {
       const code = await C.createClass(S.teacher.pin);
-      S.teacher.cloudCode = code; S.teacher.cloudPin = S.teacher.pin; S.teacher.roster = [];
+      S.teacher.cloudCode = code; S.teacher.cloudPin = S.teacher.pin; S.teacher.roster = []; S.teacher.updatedAt = Date.now();
       renderClass();
       toast('Class ' + code + ' created. Your class PIN is your teacher PIN.');
     } catch (err) { classError(err.server ? err.message : 'Could not reach the class server. Check the internet connection.'); }
@@ -669,8 +692,24 @@
   function openTeacher() {
     setTeacherBtn(true);
     classError('');
+    S.teacher.openedAt = Date.now();
     renderClass();
     if (cloudOn() && S.teacher.cloudCode) loadRoster(S.teacher.cloudCode, S.teacher.cloudPin);
+    else if (cloudOn() && S.teacher.pendingOpen) {
+      const want = S.teacher.pendingOpen;
+      $('t-open-code').value = want;
+      loadRoster(want, S.teacher.pin, $('t-open')).then(ok => {
+        if (ok) { S.teacher.pendingOpen = null; toast('Class ' + want + ' opened'); }
+        else classError('That PIN didn\'t open class ' + want + '. Type the class PIN you chose when you made it, then click Open.');
+      });
+    }
+    clearInterval(S.teacher.timer);
+    S.teacher.timer = setInterval(() => {
+      const t = S.teacher;
+      if ($('modal-teacher').hidden || !t.cloudCode || document.hidden) return;
+      if (Date.now() - t.openedAt > AUTO_REFRESH_FOR) { renderClass(); return; }
+      loadRoster(t.cloudCode, t.cloudPin);
+    }, AUTO_REFRESH_EVERY);
     const sel = $('t-topic'); sel.innerHTML = '';
     const og = document.createElement('optgroup'); og.label = 'Mixed by grade';
     Q.BANDS.forEach(b => { const o = new Option('Mixed: ' + b.name, 'band:' + b.id); og.appendChild(o); });
@@ -686,6 +725,7 @@
   }
   function closeTeacher() {
     closeModal('modal-teacher'); setTeacherBtn(false); closeModal('modal-pin');
+    clearInterval(S.teacher.timer);
     if (S.teacherPaused) setPaused(false);
     S.teacherPaused = false;
     if (!S.game) renderBand();
@@ -822,12 +862,13 @@
       const same = cl.player && cl.code === code && cl.player.nickname.toLowerCase() === S.nick.toLowerCase();
       if (cl.player && !same) { cloudSave(); cl.player = null; }
       if (code && !same) {
-        if (!C.validCode(code)) { err.textContent = 'Class codes are 6 letters and numbers, like K7QM2P.'; $('class-code').focus(); return; }
+        const bad = codeProblem(code);
+        if (bad) { err.textContent = bad; $('class-code').focus(); return; }
         const btn = $('start-form').querySelector('button[type=submit]');
         S.joining = true; busy(btn, true, 'Joining class…');
         try {
           const p = await C.join(code, S.nick);
-          if (!p) { err.textContent = 'We could not find that class code. Check it with your teacher.'; $('class-code').focus(); return; }
+          if (!p) { err.textContent = 'We could not find class ' + code + '. Check the code with your teacher, or ask for the student link.'; $('class-code').focus(); return; }
           Object.assign(cl, { player: p, code, base: snapBase(), games: 0, bestWave: p.best_wave, savedWave: p.best_wave, lastElo: p.elo, warned: false });
           S.nick = p.nickname; S.elo = p.elo;
           hello = p.returning ? 'Welcome back, ' + p.nickname + '! Your rating is ' + p.elo + '.' : 'Joined class ' + code + '. Progress will be saved.';
@@ -870,14 +911,16 @@
     $('t-create').addEventListener('click', createClass);
     $('t-open').addEventListener('click', () => {
       const code = C.cleanCode($('t-open-code').value), pin = $('t-open-pin').value.trim();
-      if (!C.validCode(code)) return classError('Class codes are 6 letters and numbers.');
+      const bad = codeProblem(code); if (bad) return classError(bad);
       if (!/^\d{4,6}$/.test(pin)) return classError('The class PIN is 4 to 6 digits.');
       loadRoster(code, pin, $('t-open')).then(ok => { if (ok) $('t-open-pin').value = ''; });
     });
     $('t-open-pin').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('t-open').click(); } });
     $('t-refresh').addEventListener('click', () => loadRoster(S.teacher.cloudCode, S.teacher.cloudPin, $('t-refresh')));
     $('t-class-csv').addEventListener('click', exportClassCSV);
-    $('t-switch').addEventListener('click', () => { S.teacher.cloudCode = null; S.teacher.cloudPin = null; S.teacher.roster = []; $('t-open-code').value = ''; classError(''); renderClass(); });
+    $('t-copy-student').addEventListener('click', () => copyText($('t-student-link').value, $('t-student-link'), 'Student link'));
+    $('t-copy-teacher').addEventListener('click', () => copyText($('t-teacher-link').value, $('t-teacher-link'), 'Teacher link'));
+    $('t-switch').addEventListener('click', () => { S.teacher.pendingOpen = null; S.teacher.cloudCode = null; S.teacher.cloudPin = null; S.teacher.roster = []; $('t-open-code').value = ''; classError(''); renderClass(); });
     $('t-roster').addEventListener('click', e => { const b = e.target.closest('.t-del'); if (b) removeStudent(b); });
     $('t-copycode').addEventListener('click', () => {
       const code = cloudOn() ? S.teacher.cloudCode : S.teacher.classCode;
@@ -924,6 +967,17 @@
     if (!cloudOn()) $('class-field').hidden = true;
     else $('start-fine').textContent = 'With a class code, your nickname, rating and best wave are saved for your teacher. No emails or real names. Without one, nothing is saved.';
     wire(); setupStart();
+    if (cloudOn()) {
+      let qs; try { qs = new URLSearchParams(location.search); } catch (e) { qs = null; }
+      const join = qs && C.cleanCode(qs.get('class') || ''), teach = qs && C.cleanCode(qs.get('teach') || '');
+      if (join && C.validCode(join)) {
+        $('class-code').value = join;
+        $('class-note').textContent = 'You\'re joining class ' + join + '. Just type your nickname and start.';
+        $('class-note').hidden = false;
+        setTimeout(() => { try { $('nick').focus(); } catch (e) { } }, 400);
+      }
+      if (teach && C.validCode(teach)) { S.teacher.pendingOpen = teach; setTimeout(requestTeacher, 120); }
+    }
     requestAnimationFrame(frame);
     MD.debug = S;   // handy in the console; still memory-only
   }
