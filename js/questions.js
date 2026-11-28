@@ -69,9 +69,16 @@
         const d = +digits[p];
         return { sub, text: 'In ' + n.toLocaleString('en-US') + ', which digit is in the ' + places[p] + ' place?', answer: String(d), wrong: digits.map(Number).filter(v => v !== d).map(String).concat([String((d + 1) % 10)]), key: places[p] + ' digit' };
       }
-      let q = R(0, 3); while (+digits[q] === 0) q = (q + 1) % 4;
-      const v = +digits[q] * Math.pow(10, q);
-      return { sub, text: 'What is the value of the ' + digits[q] + ' in ' + n.toLocaleString('en-US') + '?', answer: String(v), wrong: [v * 10, v / 10, +digits[q]].filter(x => x !== v && x >= 1 && Number.isInteger(x)).map(String).concat([String(v * 100)]), key: 'value in ' + places[q] };
+      // Only ask about a digit that appears once, so "the 2 in 8,223" can't mean two places.
+      let m = n, md = digits, single = [];
+      for (let tries = 0; tries < 50; tries++) {
+        single = [0, 1, 2, 3].filter(i => md[i] !== '0' && md.filter(x => x === md[i]).length === 1);
+        if (single.length) break;
+        m = R(1000, 9999); md = String(m).split('').reverse();
+      }
+      if (!single.length) { m = 4729; md = ['9', '2', '7', '4']; single = [0, 1, 2, 3]; }
+      const q = pick(single), v = +md[q] * Math.pow(10, q);
+      return { sub, text: 'What is the value of the ' + md[q] + ' in ' + m.toLocaleString('en-US') + '?', answer: String(v), wrong: [v * 10, v / 10, +md[q]].filter(x => x !== v && x >= 1 && Number.isInteger(x)).map(String).concat([String(v * 100)]), key: 'value in ' + places[q] };
     } },
     { id: 'arrays', grade: '2–3', name: 'Multiplication & Fact Families', gen(like) {
       const a = like && Math.random() < 0.6 ? like.a : R(2, 12), b = like && Math.random() < 0.6 ? like.b : R(2, 12), p = a * b;
